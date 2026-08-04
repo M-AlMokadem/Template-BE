@@ -1,10 +1,14 @@
 using System;
+using Domain.Context;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
 namespace Domain.Migrations
 {
+    [DbContext(typeof(ApplicationContext))]
+    [Migration("20260804000000_InitialCreate")]
     public partial class InitialCreate : Migration
     {
         protected override void Up(MigrationBuilder migrationBuilder)
