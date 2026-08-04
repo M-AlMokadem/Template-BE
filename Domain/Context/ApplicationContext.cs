@@ -1,22 +1,19 @@
 ﻿
-using Microsoft.AspNetCore.Http;
+using Domain.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace Domain.Context
 {
     public class ApplicationContext : DbContext
     {
-        private readonly IHttpContextAccessor _httpContextAccessor;
-
         /// <summary>
         /// Flag to suppress row-by-row audit logging during bulk operations (e.g., Excel imports).
         /// When true, individual entity audits are skipped and a single upload audit should be logged separately.
         /// </summary>
         public bool SuppressAuditForBulkOperation { get; set; } = false;
 
-        public ApplicationContext(DbContextOptions<ApplicationContext> options, IHttpContextAccessor httpContextAccessor) : base(options)
+        public ApplicationContext(DbContextOptions<ApplicationContext> options) : base(options)
         {
-            _httpContextAccessor = httpContextAccessor;
         }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -32,9 +29,8 @@ namespace Domain.Context
 
         #region DbSets
 
-        #region MyRegion
-
-        #endregion
+        public DbSet<ApplicationUser> ApplicationUsers { get; set; }
+        public DbSet<ApplicationRole> ApplicationRoles { get; set; }
 
         #endregion
 

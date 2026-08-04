@@ -1,5 +1,7 @@
 using API.Middlewares;
 using API.Services;
+using Domain.Context;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -9,6 +11,8 @@ builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddDbContext<ApplicationContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("VersionZero")));
 builder.Services.AddSingleton<IErrorLogService, ErrorLogService>();
 
 var app = builder.Build();

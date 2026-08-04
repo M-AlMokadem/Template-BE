@@ -1,0 +1,10 @@
+using Domain.Base;
+
+namespace Domain.Models;
+
+public class ApplicationRole : BaseEntity
+{
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public bool IsActive { get; set; } = true;
+}
