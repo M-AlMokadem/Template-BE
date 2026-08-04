@@ -1,4 +1,5 @@
 using API.Middlewares;
+using API.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -8,6 +9,7 @@ builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddSingleton<IErrorLogService, ErrorLogService>();
 
 var app = builder.Build();
 
@@ -19,6 +21,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseGlobalExceptionHandling();
+app.UseErrorStatusLogging();
 
 app.UseHttpsRedirection();
 

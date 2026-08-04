@@ -1,6 +1,8 @@
 using System.Net;
 using System.Text.Json;
 using API.Exceptions;
+using API.Models;
+using API.Services;
 using Util.Core;
 
 namespace API.Middlewares;
@@ -10,15 +12,18 @@ public class ExceptionHandlingMiddleware
     private readonly RequestDelegate _next;
     private readonly ILogger<ExceptionHandlingMiddleware> _logger;
     private readonly IHostEnvironment _environment;
+    private readonly IErrorLogService _errorLogService;
 
     public ExceptionHandlingMiddleware(
         RequestDelegate next,
         ILogger<ExceptionHandlingMiddleware> logger,
-        IHostEnvironment environment)
+        IHostEnvironment environment,
+        IErrorLogService errorLogService)
     {
         _next = next;
         _logger = logger;
         _environment = environment;
+        _errorLogService = errorLogService;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -37,11 +42,11 @@ public class ExceptionHandlingMiddleware
                 context.Request.Path,
                 correlationId);
 
-            await HandleExceptionAsync(context, exception);
+            await HandleExceptionAsync(context, exception, correlationId);
         }
     }
 
-    private async Task HandleExceptionAsync(HttpContext context, Exception exception)
+    private async Task HandleExceptionAsync(HttpContext context, Exception exception, string correlationId)
     {
         if (context.Response.HasStarted)
         {
@@ -49,12 +54,30 @@ public class ExceptionHandlingMiddleware
             throw exception;
         }
 
-        var correlationId = GetCorrelationId(context);
         var statusCode = MapStatusCode(exception);
+        context.Items["ExceptionHandled"] = true;
 
         context.Response.ContentType = "application/json";
         context.Response.StatusCode = statusCode;
         context.Response.Headers["X-Correlation-ID"] = correlationId;
+
+        var logEntry = new ErrorLogEntry
+        {
+            TimestampUtc = DateTimeOffset.UtcNow,
+            Label = "exception",
+            StatusCode = statusCode,
+            ErrorType = exception.GetType().Name,
+            Message = exception.Message,
+            CorrelationId = correlationId,
+            Method = context.Request.Method,
+            Path = context.Request.Path.Value ?? string.Empty,
+            QueryString = context.Request.QueryString.HasValue ? context.Request.QueryString.Value : null,
+            TraceIdentifier = context.TraceIdentifier,
+            StackTrace = exception.StackTrace,
+            Data = exception.Data
+        };
+
+        await _errorLogService.LogAsync(logEntry, context.RequestAborted);
 
         var message = _environment.IsDevelopment()
             ? exception.Message
