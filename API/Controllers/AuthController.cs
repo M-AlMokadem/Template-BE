@@ -1,4 +1,5 @@
 using API.Models.Auth;
+using API.Constants;
 using API.Services;
 using Domain.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -61,9 +62,17 @@ public class AuthController : ControllerBase
 			return ValidationProblem(ModelState);
 		}
 
+		var addToRoleResult = await userManager.AddToRoleAsync(user, IdentityRoles.User);
+		if (!addToRoleResult.Succeeded)
+		{
+			logger.LogError("Failed to assign default role to {Email}. Errors: {Errors}", request.Email, string.Join(" | ", addToRoleResult.Errors.Select(error => error.Description)));
+			await userManager.DeleteAsync(user);
+			return StatusCode(StatusCodes.Status500InternalServerError, new { message = "Registration could not be completed. Please try again." });
+		}
+
 		logger.LogInformation("User {Email} registered successfully.", user.Email);
 
-		return Ok(CreateAuthResponse(user));
+		return Ok(await CreateAuthResponseAsync(user));
 	}
 
 	[HttpPost("login")]
@@ -96,7 +105,7 @@ public class AuthController : ControllerBase
 
 		logger.LogInformation("User {Email} logged in successfully.", email);
 
-		return Ok(CreateAuthResponse(user));
+		return Ok(await CreateAuthResponseAsync(user));
 	}
 
 	[Authorize]
@@ -123,7 +132,8 @@ public class AuthController : ControllerBase
 		{
 			Id = user.Id.ToString(),
 			FullName = user.FullName,
-			Email = user.Email ?? string.Empty
+			Email = user.Email ?? string.Empty,
+			Roles = (await userManager.GetRolesAsync(user)).ToArray()
 		});
 	}
 
@@ -137,9 +147,10 @@ public class AuthController : ControllerBase
 		return NoContent();
 	}
 
-	private AuthResponse CreateAuthResponse(ApplicationUser user)
+	private async Task<AuthResponse> CreateAuthResponseAsync(ApplicationUser user)
 	{
-		var token = jwtTokenService.CreateToken(user);
+		var roles = await userManager.GetRolesAsync(user);
+		var token = await jwtTokenService.CreateTokenAsync(user, roles);
 
 		return new AuthResponse
 		{
@@ -149,7 +160,8 @@ public class AuthController : ControllerBase
 			{
 				Id = user.Id.ToString(),
 				FullName = user.FullName,
-				Email = user.Email ?? string.Empty
+				Email = user.Email ?? string.Empty,
+				Roles = roles.ToArray()
 			}
 		};
 	}

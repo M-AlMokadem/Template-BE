@@ -1,3 +1,4 @@
+using API.Constants;
 using API.Exceptions;
 using API.Models.Users;
 using Domain.Context;
@@ -10,7 +11,7 @@ using Util.Core;
 namespace API.Controllers;
 
 [ApiController]
-[Authorize]
+[Authorize(Roles = IdentityRoles.Admin)]
 [Route("api/users")]
 public class UsersController : ControllerBase
 {

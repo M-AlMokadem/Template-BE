@@ -8,7 +8,7 @@ namespace API.Services;
 
 public interface IJwtTokenService
 {
-	AuthTokenResult CreateToken(ApplicationUser user);
+	Task<AuthTokenResult> CreateTokenAsync(ApplicationUser user, IEnumerable<string> roles);
 }
 
 public sealed class JwtTokenService : IJwtTokenService
@@ -20,7 +20,7 @@ public sealed class JwtTokenService : IJwtTokenService
 		this.configuration = configuration;
 	}
 
-	public AuthTokenResult CreateToken(ApplicationUser user)
+	public Task<AuthTokenResult> CreateTokenAsync(ApplicationUser user, IEnumerable<string> roles)
 	{
 		var issuer = configuration["Jwt:Issuer"] ?? "VersionZero.API";
 		var audience = configuration["Jwt:Audience"] ?? "VersionZero.Client";
@@ -40,6 +40,8 @@ public sealed class JwtTokenService : IJwtTokenService
 			new(ClaimTypes.Email, user.Email ?? string.Empty)
 		};
 
+		claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
+
 		var credentials = new SigningCredentials(
 			new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)),
 			SecurityAlgorithms.HmacSha256);
@@ -52,11 +54,11 @@ public sealed class JwtTokenService : IJwtTokenService
 			expires: expiresAtUtc,
 			signingCredentials: credentials);
 
-		return new AuthTokenResult
+		return Task.FromResult(new AuthTokenResult
 		{
 			AccessToken = new JwtSecurityTokenHandler().WriteToken(token),
 			ExpiresAtUtc = expiresAtUtc
-		};
+		});
 	}
 }
 

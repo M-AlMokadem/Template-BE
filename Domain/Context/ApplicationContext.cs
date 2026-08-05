@@ -42,6 +42,11 @@ namespace Domain.Context
 
         public DbSet<ApplicationUser> ApplicationUsers { get; set; }
         public DbSet<ApplicationRole> ApplicationRoles { get; set; }
+        public DbSet<IdentityUserClaim<Guid>> ApplicationUserClaims { get; set; }
+        public DbSet<IdentityUserLogin<Guid>> ApplicationUserLogins { get; set; }
+        public DbSet<IdentityUserToken<Guid>> ApplicationUserTokens { get; set; }
+        public DbSet<IdentityRoleClaim<Guid>> ApplicationRoleClaims { get; set; }
+        public DbSet<IdentityUserRole<Guid>> ApplicationUserRoles { get; set; }
 
         #endregion
 
