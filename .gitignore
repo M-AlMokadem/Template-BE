@@ -32,3 +32,8 @@ README.md
 API/Logs/logs20251014.txt
 /API/Logs
 /API/appsettings.json
+
+# Local .NET CLI caches and first-run sentinels
+.dotnet/
+.nuget/
+.local/
