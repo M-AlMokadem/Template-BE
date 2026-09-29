@@ -1,12 +1,10 @@
 using API.Constants;
 using API.Exceptions;
 using API.Models.Users;
-using API.Services;
-using Domain.Context;
-using Domain.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+using Service.IServices;
+using Service.Models;
 using Util.Core;
 
 namespace API.Controllers;
@@ -17,12 +15,10 @@ namespace API.Controllers;
 public class UsersController : ControllerBase
 {
     private const int DefaultPageSize = 10;
-    private readonly ApplicationContext applicationContext;
-    private readonly IUserService userService;
+    private readonly IUserApplicationService userService;
 
-    public UsersController(ApplicationContext applicationContext, IUserService userService)
+    public UsersController(IUserApplicationService userService)
     {
-        this.applicationContext = applicationContext;
         this.userService = userService;
     }
 
@@ -35,12 +31,25 @@ public class UsersController : ControllerBase
         [FromQuery] int pageSize = DefaultPageSize,
         [FromQuery] int pageNumber = 1)
     {
-        var payload = await userService.GetUsersAsync(
-            searchedValue,
-            columnsKey,
-            isPaginationRequest,
-            pageSize,
-            pageNumber);
+        var result = await userService.GetUsersAsync(new UserListQuery
+        {
+            SearchValue = searchedValue,
+            Columns = columnsKey ?? [],
+            IsPaginationRequest = isPaginationRequest,
+            PageSize = pageSize,
+            PageNumber = pageNumber
+        });
+
+        var payload = new PagedResult<UserSummaryResponse>
+        {
+            Items = result.Items.Select(ToResponse).ToList(),
+            TotalCount = result.TotalCount,
+            PageNumber = result.PageNumber,
+            PageSize = result.PageSize,
+            TotalPages = result.TotalPages,
+            HasNextPage = result.HasNextPage,
+            HasPreviousPage = result.HasPreviousPage
+        };
 
         return Ok(new DefaultResponse(true, StatusCodes.Status200OK, payload, "Users retrieved successfully."));
     }
@@ -50,19 +59,25 @@ public class UsersController : ControllerBase
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CreateUser([FromBody] CreateUserRequest request)
     {
-        var (user, result) = await userService.CreateUserAsync(request);
-        if (!result.Succeeded || user is null)
+        var result = await userService.CreateUserAsync(new CreateUserCommand
+        {
+            FullName = request.FullName,
+            Email = request.Email,
+            Password = request.Password
+        });
+
+        if (!result.Succeeded || result.User is null)
         {
             foreach (var error in result.Errors)
             {
-                ModelState.AddModelError(error.Code, error.Description);
+                ModelState.AddModelError(string.Empty, error);
             }
 
             return ValidationProblem(ModelState);
         }
 
-        var response = ToSummary(user);
-        return CreatedAtAction(nameof(GetById), new { id = user.Id }, new DefaultResponse(
+        var response = ToResponse(result.User);
+        return CreatedAtAction(nameof(GetById), new { id = result.User.Id }, new DefaultResponse(
             true,
             StatusCodes.Status201Created,
             response,
@@ -74,14 +89,14 @@ public class UsersController : ControllerBase
     [ProducesResponseType<DefaultResponse>(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById(Guid id)
     {
-        var user = await FindActiveUserAsync(id);
+        var user = await userService.GetByIdAsync(id);
 
         if (user is null)
         {
             throw new NotFoundException("User was not found.");
         }
 
-        var payload = ToSummary(user);
+        var payload = ToResponse(user);
         return Ok(new DefaultResponse(true, StatusCodes.Status200OK, payload, "User retrieved successfully."));
     }
 
@@ -90,19 +105,14 @@ public class UsersController : ControllerBase
     [ProducesResponseType<DefaultResponse>(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateStatus(Guid id, [FromBody] UpdateUserStatusRequest request)
     {
-        var user = await FindActiveUserAsync(id);
+        var user = await userService.UpdateStatusAsync(id, request.IsActive);
 
         if (user is null)
         {
             throw new NotFoundException("User was not found.");
         }
 
-        user.IsActive = request.IsActive;
-        user.ModifiedOn = DateTime.UtcNow;
-
-        await applicationContext.SaveChangesAsync();
-
-        var payload = ToSummary(user);
+        var payload = ToResponse(user);
         return Ok(new DefaultResponse(true, StatusCodes.Status200OK, payload, "User status updated successfully."));
     }
 
@@ -111,37 +121,24 @@ public class UsersController : ControllerBase
     [ProducesResponseType<DefaultResponse>(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete(Guid id)
     {
-        var user = await FindActiveUserAsync(id);
+        var deleted = await userService.DeleteAsync(id);
 
-        if (user is null)
+        if (!deleted)
         {
             throw new NotFoundException("User was not found.");
         }
 
-        user.IsDeleted = true;
-        user.IsActive = false;
-        user.ModifiedOn = DateTime.UtcNow;
-
-        await applicationContext.SaveChangesAsync();
-
         return Ok(new DefaultResponse(true, StatusCodes.Status200OK, true, "User deleted successfully."));
     }
 
-    private async Task<ApplicationUser?> FindActiveUserAsync(Guid id)
-    {
-        return await applicationContext.ApplicationUsers
-            .FirstOrDefaultAsync(user => user.Id == id && !user.IsDeleted);
-    }
-
-    private static UserSummaryResponse ToSummary(ApplicationUser user)
+    private static UserSummaryResponse ToResponse(UserSummary user)
     {
         return new UserSummaryResponse
         {
             Id = user.Id.ToString(),
             FullName = user.FullName,
-            Email = user.Email ?? string.Empty,
+            Email = user.Email,
             IsActive = user.IsActive
         };
     }
-
 }
