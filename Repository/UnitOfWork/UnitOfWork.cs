@@ -5,7 +5,7 @@ namespace Repository.UnitOfWork
 {
     public class UnitOfWork : IUnitOfWork
     {
-        private IDbContextTransaction _transaction;
+        private IDbContextTransaction? _transaction;
 
         public ApplicationContext Context { get; }
 
@@ -36,6 +36,11 @@ namespace Repository.UnitOfWork
 
         public async Task CommitTransactionAsync()
         {
+            if (_transaction is null)
+            {
+                throw new InvalidOperationException("No active transaction exists.");
+            }
+
             try
             {
                 await Context.SaveChangesAsync();
@@ -50,6 +55,11 @@ namespace Repository.UnitOfWork
 
         public async Task RollbackTransactionAsync()
         {
+            if (_transaction is null)
+            {
+                throw new InvalidOperationException("No active transaction exists.");
+            }
+
             try
             {
                 await _transaction.RollbackAsync();
