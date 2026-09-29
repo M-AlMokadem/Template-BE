@@ -4,4 +4,5 @@
   <Project Path="Repository/Repository.csproj" Id="dea468b0-a66e-47af-9c21-83432bb80543" />
   <Project Path="Service/Service.csproj" Id="40a3038f-f657-4716-a1d7-310cb27e9c39" />
   <Project Path="Util/Util.csproj" Id="5ec1be85-71d0-45c3-bcac-f58a195658f2" />
+  <Project Path="Tests/VersionZero.Api.Tests/VersionZero.Api.Tests.csproj" />
 </Solution>

@@ -1,6 +1,81 @@
 @API_HostAddress = http://localhost:5186
+@AccessToken = paste-access-token-here
+@RefreshToken = paste-refresh-token-here
+@UserId = paste-user-id-here
 
-GET {{API_HostAddress}}/weatherforecast/
-Accept: application/json
+### Health
+GET {{API_HostAddress}}/health
+Accept: text/plain
 
-###
+### Register
+POST {{API_HostAddress}}/api/auth/register
+Content-Type: application/json
+
+{
+  "fullName": "Jane Doe",
+  "email": "jane@example.com",
+  "password": "Password123",
+  "confirmPassword": "Password123"
+}
+
+### Login
+POST {{API_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "jane@example.com",
+  "password": "Password123"
+}
+
+### Refresh access token
+POST {{API_HostAddress}}/api/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{RefreshToken}}"
+}
+
+### Current profile
+GET {{API_HostAddress}}/api/auth/me
+Authorization: Bearer {{AccessToken}}
+
+### Logout and revoke token pair
+POST {{API_HostAddress}}/api/auth/logout
+Authorization: Bearer {{AccessToken}}
+Content-Type: application/json
+
+{
+  "refreshToken": "{{RefreshToken}}"
+}
+
+### List users (Admin)
+GET {{API_HostAddress}}/api/users?pageNumber=1&pageSize=10&searchedValue=
+Authorization: Bearer {{AccessToken}}
+
+### Create user (Admin)
+POST {{API_HostAddress}}/api/users
+Authorization: Bearer {{AccessToken}}
+Content-Type: application/json
+
+{
+  "fullName": "John Doe",
+  "email": "john@example.com",
+  "password": "Password123"
+}
+
+### Get user (Admin)
+GET {{API_HostAddress}}/api/users/{{UserId}}
+Authorization: Bearer {{AccessToken}}
+
+### Update user status (Admin)
+PUT {{API_HostAddress}}/api/users/{{UserId}}/status
+Authorization: Bearer {{AccessToken}}
+Content-Type: application/json
+
+{
+  "isActive": false
+}
+
+### Delete user (Admin)
+DELETE {{API_HostAddress}}/api/users/{{UserId}}
+Authorization: Bearer {{AccessToken}}
