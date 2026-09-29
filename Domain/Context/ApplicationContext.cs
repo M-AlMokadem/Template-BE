@@ -67,6 +67,7 @@ namespace Domain.Context
 
         public DbSet<ApplicationUser> ApplicationUsers { get; set; }
         public DbSet<ApplicationRole> ApplicationRoles { get; set; }
+        public DbSet<RefreshToken> RefreshTokens { get; set; }
         public DbSet<IdentityUserClaim<Guid>> ApplicationUserClaims { get; set; }
         public DbSet<IdentityUserLogin<Guid>> ApplicationUserLogins { get; set; }
         public DbSet<IdentityUserToken<Guid>> ApplicationUserTokens { get; set; }

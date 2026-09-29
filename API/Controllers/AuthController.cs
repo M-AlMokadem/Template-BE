@@ -15,18 +15,18 @@ public class AuthController : ControllerBase
 {
 	private readonly UserManager<ApplicationUser> userManager;
 	private readonly SignInManager<ApplicationUser> signInManager;
-	private readonly IJwtTokenService jwtTokenService;
+	private readonly IRefreshTokenService refreshTokenService;
 	private readonly ILogger<AuthController> logger;
 
 	public AuthController(
 		UserManager<ApplicationUser> userManager,
 		SignInManager<ApplicationUser> signInManager,
-		IJwtTokenService jwtTokenService,
+		IRefreshTokenService refreshTokenService,
 		ILogger<AuthController> logger)
 	{
 		this.userManager = userManager;
 		this.signInManager = signInManager;
-		this.jwtTokenService = jwtTokenService;
+		this.refreshTokenService = refreshTokenService;
 		this.logger = logger;
 	}
 
@@ -140,22 +140,58 @@ public class AuthController : ControllerBase
 	[Authorize]
 	[HttpPost("logout")]
 	[ProducesResponseType(StatusCodes.Status204NoContent)]
-	public IActionResult Logout()
+	public async Task<IActionResult> Logout([FromBody] RefreshRequest? request)
 	{
 		var email = User.FindFirstValue(ClaimTypes.Email) ?? "unknown";
+		var accessTokenJti = User.FindFirstValue(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Jti)
+			?? User.FindFirstValue("jti");
+
+		await refreshTokenService.RevokeAsync(request?.RefreshToken, accessTokenJti);
 		logger.LogInformation("User {Email} logged out.", email);
 		return NoContent();
+	}
+
+	[AllowAnonymous]
+	[HttpPost("refresh")]
+	[ProducesResponseType<AuthResponse>(StatusCodes.Status200OK)]
+	[ProducesResponseType(StatusCodes.Status401Unauthorized)]
+	public async Task<IActionResult> Refresh([FromBody] RefreshRequest request)
+	{
+		var tokenPair = await refreshTokenService.RefreshAsync(request.RefreshToken);
+		if (tokenPair is null)
+		{
+			return Unauthorized(new { message = "The refresh token is invalid or expired." });
+		}
+
+		var user = await userManager.FindByIdAsync(tokenPair.UserId.ToString());
+		if (user is null)
+		{
+			return Unauthorized(new { message = "The refresh token user no longer exists." });
+		}
+
+		var roles = await userManager.GetRolesAsync(user);
+		return Ok(ToAuthResponse(user, tokenPair, roles));
 	}
 
 	private async Task<AuthResponse> CreateAuthResponseAsync(ApplicationUser user)
 	{
 		var roles = await userManager.GetRolesAsync(user);
-		var token = await jwtTokenService.CreateTokenAsync(user, roles);
+		var token = await refreshTokenService.CreateTokenPairAsync(user, roles);
 
+		return ToAuthResponse(user, token, roles);
+	}
+
+	private static AuthResponse ToAuthResponse(
+		ApplicationUser user,
+		AuthTokenPair token,
+		IEnumerable<string> roles)
+	{
 		return new AuthResponse
 		{
 			AccessToken = token.AccessToken,
 			ExpiresAtUtc = token.ExpiresAtUtc,
+			RefreshToken = token.RefreshToken,
+			RefreshTokenExpiresAtUtc = token.RefreshTokenExpiresAtUtc,
 			User = new AuthUserResponse
 			{
 				Id = user.Id.ToString(),

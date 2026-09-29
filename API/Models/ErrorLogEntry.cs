@@ -12,6 +12,8 @@ public class ErrorLogEntry
     public string Path { get; set; } = string.Empty;
     public string? QueryString { get; set; }
     public string? TraceIdentifier { get; set; }
+    public double DurationMilliseconds { get; set; }
+    public string? UserId { get; set; }
     public string? StackTrace { get; set; }
     public object? Data { get; set; }
 }

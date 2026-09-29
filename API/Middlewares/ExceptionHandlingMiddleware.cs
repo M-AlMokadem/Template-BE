@@ -1,4 +1,6 @@
 using System.Net;
+using System.Diagnostics;
+using System.Security.Claims;
 using System.Text.Json;
 using API.Exceptions;
 using API.Models;
@@ -28,12 +30,14 @@ public class ExceptionHandlingMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
+        var stopwatch = Stopwatch.StartNew();
         try
         {
             await _next(context);
         }
         catch (Exception exception)
         {
+            stopwatch.Stop();
             var correlationId = GetCorrelationId(context);
             _logger.LogError(
                 exception,
@@ -42,11 +46,15 @@ public class ExceptionHandlingMiddleware
                 context.Request.Path,
                 correlationId);
 
-            await HandleExceptionAsync(context, exception, correlationId);
+            await HandleExceptionAsync(context, exception, correlationId, stopwatch.Elapsed.TotalMilliseconds);
         }
     }
 
-    private async Task HandleExceptionAsync(HttpContext context, Exception exception, string correlationId)
+    private async Task HandleExceptionAsync(
+        HttpContext context,
+        Exception exception,
+        string correlationId,
+        double durationMilliseconds)
     {
         if (context.Response.HasStarted)
         {
@@ -73,6 +81,8 @@ public class ExceptionHandlingMiddleware
             Path = context.Request.Path.Value ?? string.Empty,
             QueryString = context.Request.QueryString.HasValue ? context.Request.QueryString.Value : null,
             TraceIdentifier = context.TraceIdentifier,
+            DurationMilliseconds = durationMilliseconds,
+            UserId = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
             StackTrace = exception.StackTrace,
             Data = exception.Data
         };

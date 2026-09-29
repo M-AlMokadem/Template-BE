@@ -1,4 +1,6 @@
+using API.Configuration;
 using Domain.Models;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -13,26 +15,26 @@ public interface IJwtTokenService
 
 public sealed class JwtTokenService : IJwtTokenService
 {
-	private readonly IConfiguration configuration;
+	private readonly JwtOptions options;
 
-	public JwtTokenService(IConfiguration configuration)
+	public JwtTokenService(IOptions<JwtOptions> options)
 	{
-		this.configuration = configuration;
+		this.options = options.Value;
 	}
 
 	public Task<AuthTokenResult> CreateTokenAsync(ApplicationUser user, IEnumerable<string> roles)
 	{
-		var issuer = configuration["Jwt:Issuer"] ?? "VersionZero.API";
-		var audience = configuration["Jwt:Audience"] ?? "VersionZero.Client";
-		var key = configuration["Jwt:Key"] ?? "VersionZero.Dev.Secret.Key.For.Jwt.Token.Signing.2026";
-		var expiresInMinutes = int.TryParse(configuration["Jwt:ExpiresInMinutes"], out var configuredMinutes)
-			? configuredMinutes
-			: 480;
+		var issuer = options.Issuer;
+		var audience = options.Audience;
+		var key = options.Key;
+		var expiresInMinutes = options.ExpiresInMinutes;
 		var expiresAtUtc = DateTime.UtcNow.AddMinutes(expiresInMinutes);
+		var jti = Guid.NewGuid().ToString("N");
 
 		var claims = new List<Claim>
 		{
 			new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+			new(JwtRegisteredClaimNames.Jti, jti),
 			new(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty),
 			new(JwtRegisteredClaimNames.UniqueName, user.UserName ?? user.Email ?? string.Empty),
 			new(ClaimTypes.NameIdentifier, user.Id.ToString()),
@@ -57,7 +59,8 @@ public sealed class JwtTokenService : IJwtTokenService
 		return Task.FromResult(new AuthTokenResult
 		{
 			AccessToken = new JwtSecurityTokenHandler().WriteToken(token),
-			ExpiresAtUtc = expiresAtUtc
+			ExpiresAtUtc = expiresAtUtc,
+			Jti = jti
 		});
 	}
 }
@@ -66,4 +69,5 @@ public sealed class AuthTokenResult
 {
 	public string AccessToken { get; set; } = string.Empty;
 	public DateTime ExpiresAtUtc { get; set; }
+	public string Jti { get; set; } = string.Empty;
 }

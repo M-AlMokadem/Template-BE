@@ -1,5 +1,7 @@
 using API.Models;
 using API.Services;
+using System.Diagnostics;
+using System.Security.Claims;
 
 namespace API.Middlewares;
 
@@ -21,7 +23,15 @@ public class ErrorStatusLoggingMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        await _next(context);
+        var stopwatch = Stopwatch.StartNew();
+        try
+        {
+            await _next(context);
+        }
+        finally
+        {
+            stopwatch.Stop();
+        }
 
         if (context.Items.ContainsKey("ExceptionHandled"))
         {
@@ -58,6 +68,8 @@ public class ErrorStatusLoggingMiddleware
             Path = context.Request.Path.Value ?? string.Empty,
             QueryString = context.Request.QueryString.HasValue ? context.Request.QueryString.Value : null,
             TraceIdentifier = context.TraceIdentifier,
+            DurationMilliseconds = stopwatch.Elapsed.TotalMilliseconds,
+            UserId = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
             Data = new
             {
                 Environment = _environment.EnvironmentName
