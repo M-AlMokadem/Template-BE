@@ -66,6 +66,7 @@ builder.Services.AddCors(options =>
 });
 builder.Services.AddSingleton<IErrorLogService, ErrorLogService>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
+builder.Services.AddScoped<IUserService, UserService>();
 
 var app = builder.Build();
 

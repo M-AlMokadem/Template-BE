@@ -1,6 +1,7 @@
 using API.Constants;
 using API.Exceptions;
 using API.Models.Users;
+using API.Services;
 using Domain.Context;
 using Domain.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -16,12 +17,13 @@ namespace API.Controllers;
 public class UsersController : ControllerBase
 {
     private const int DefaultPageSize = 10;
-    private const int MaxPageSize = 200;
     private readonly ApplicationContext applicationContext;
+    private readonly IUserService userService;
 
-    public UsersController(ApplicationContext applicationContext)
+    public UsersController(ApplicationContext applicationContext, IUserService userService)
     {
         this.applicationContext = applicationContext;
+        this.userService = userService;
     }
 
     [HttpGet]
@@ -33,62 +35,38 @@ public class UsersController : ControllerBase
         [FromQuery] int pageSize = DefaultPageSize,
         [FromQuery] int pageNumber = 1)
     {
-        var query = applicationContext.ApplicationUsers
-            .AsNoTracking()
-            .Where(user => !user.IsDeleted);
-
-        var normalizedSearch = searchedValue?.Trim();
-        if (!string.IsNullOrWhiteSpace(normalizedSearch))
-        {
-            var normalizedColumns = (columnsKey ?? [])
-                .Where(column => !string.IsNullOrWhiteSpace(column))
-                .Select(column => column.Trim().ToLowerInvariant())
-                .ToHashSet();
-
-            var filterByName = normalizedColumns.Count == 0 || normalizedColumns.Contains("fullname");
-            var filterByEmail = normalizedColumns.Count == 0 || normalizedColumns.Contains("email");
-
-            query = query.Where(user =>
-                (filterByName && EF.Functions.ILike(user.FullName, $"%{normalizedSearch}%")) ||
-                (filterByEmail && EF.Functions.ILike(user.Email ?? string.Empty, $"%{normalizedSearch}%")));
-        }
-
-        var totalCount = await query.CountAsync();
-
-        var safePageSize = pageSize <= 0 ? DefaultPageSize : Math.Min(pageSize, MaxPageSize);
-        var safePageNumber = pageNumber <= 0 ? 1 : pageNumber;
-
-        if (isPaginationRequest)
-        {
-            query = query
-                .OrderBy(user => user.FullName)
-                .Skip((safePageNumber - 1) * safePageSize)
-                .Take(safePageSize);
-        }
-        else
-        {
-            query = query.OrderBy(user => user.FullName);
-            safePageNumber = 1;
-            safePageSize = Math.Max(totalCount, 1);
-        }
-
-        var items = await query
-            .Select(ToSummaryExpression())
-            .ToListAsync();
-
-        var totalPages = Math.Max((int)Math.Ceiling(totalCount / (double)Math.Max(safePageSize, 1)), 1);
-        var payload = new PagedResult<UserSummaryResponse>
-        {
-            Items = items,
-            TotalCount = totalCount,
-            PageNumber = safePageNumber,
-            PageSize = safePageSize,
-            TotalPages = totalPages,
-            HasNextPage = safePageNumber < totalPages,
-            HasPreviousPage = safePageNumber > 1
-        };
+        var payload = await userService.GetUsersAsync(
+            searchedValue,
+            columnsKey,
+            isPaginationRequest,
+            pageSize,
+            pageNumber);
 
         return Ok(new DefaultResponse(true, StatusCodes.Status200OK, payload, "Users retrieved successfully."));
+    }
+
+    [HttpPost]
+    [ProducesResponseType<DefaultResponse>(StatusCodes.Status201Created)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> CreateUser([FromBody] CreateUserRequest request)
+    {
+        var (user, result) = await userService.CreateUserAsync(request);
+        if (!result.Succeeded || user is null)
+        {
+            foreach (var error in result.Errors)
+            {
+                ModelState.AddModelError(error.Code, error.Description);
+            }
+
+            return ValidationProblem(ModelState);
+        }
+
+        var response = ToSummary(user);
+        return CreatedAtAction(nameof(GetById), new { id = user.Id }, new DefaultResponse(
+            true,
+            StatusCodes.Status201Created,
+            response,
+            "User created successfully."));
     }
 
     [HttpGet("{id:guid}")]
@@ -166,14 +144,4 @@ public class UsersController : ControllerBase
         };
     }
 
-    private static System.Linq.Expressions.Expression<Func<ApplicationUser, UserSummaryResponse>> ToSummaryExpression()
-    {
-        return user => new UserSummaryResponse
-        {
-            Id = user.Id.ToString(),
-            FullName = user.FullName,
-            Email = user.Email ?? string.Empty,
-            IsActive = user.IsActive
-        };
-    }
 }
